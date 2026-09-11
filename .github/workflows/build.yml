@@ -1,0 +1,139 @@
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Derive version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF#refs/tags/v}"
+            PRERELEASE=false
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            NAME="0.1.${GITHUB_RUN_NUMBER}"
+            PRERELEASE=true
+            TAG="build-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare signing key
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
+            echo "Using the repository's release keystore."
+            echo "${KEYSTORE_BASE64}" | base64 -d > release.jks
+            STORE_PASS="${KEYSTORE_PASSWORD}"
+            ALIAS="${KEY_ALIAS}"
+            KEY_PASS="${KEY_PASSWORD}"
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            # No secret configured: mint a throwaway key so the APK is still
+            # installable. Signature changes per build, so upgrading in place
+            # over a previous download will not work until a keystore secret exists.
+            echo "No KEYSTORE_BASE64 secret; generating an ephemeral signing key."
+            STORE_PASS="bassenhancer"
+            ALIAS="bassenhancer"
+            KEY_PASS="bassenhancer"
+            keytool -genkeypair -v \
+              -keystore release.jks \
+              -storepass "${STORE_PASS}" \
+              -keypass "${KEY_PASS}" \
+              -alias "${ALIAS}" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Bass Enhancer, OU=CI, O=bassEnhancer, L=, S=, C=GB"
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "storeFile=$(pwd)/release.jks"
+            echo "storePassword=${STORE_PASS}"
+            echo "keyAlias=${ALIAS}"
+            echo "keyPassword=${KEY_PASS}"
+          } > keystore.properties
+
+      - name: Build
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: ./gradlew --no-daemon :app:assembleRelease :app:assembleDebug
+
+      - name: Collect APKs
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk \
+             "dist/BassEnhancer-${{ steps.version.outputs.name }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "dist/BassEnhancer-${{ steps.version.outputs.name }}-debug.apk"
+          ls -lh dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BassEnhancer-${{ steps.version.outputs.name }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Clean up signing material
+        if: always()
+        run: rm -f release.jks keystore.properties
+
+      - name: Publish release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Bass Enhancer ${{ steps.version.outputs.name }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: dist/*.apk
+          body: |
+            Haptic bass enhancer for Pixel. Download the APK below and install it.
+
+            - Built from `${{ github.ref_name }}` (`${{ github.sha }}`)
+            - `BassEnhancer-*.apk` is the optimised release build; the `-debug`
+              one is unminified and useful if something misbehaves.
+            - Signing: ${{ steps.signing.outputs.stable == 'true' && 'repository release key.' || 'ephemeral CI key — uninstall any previous copy before installing this one. Add a KEYSTORE_BASE64 secret to get stable, upgradable signing.' }}
+
+            Grant the microphone permission when asked (Android routes playback
+            capture through it) and accept the screen-capture prompt — that prompt
+            is how Android exposes the media audio stream; nothing is recorded or
+            leaves the device.

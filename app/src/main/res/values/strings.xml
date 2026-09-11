@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bass Enhancer</string>
+
+    <string name="channel_name">Bass Enhancer running</string>
+    <string name="channel_desc">Shown while the haptic bass enhancer is active.</string>
+    <string name="notif_title">Enhancing bass</string>
+    <string name="notif_text">Tracking %1$d–%2$d Hz on the media output</string>
+    <string name="action_stop">Stop</string>
+
+    <string name="tile_on">On</string>
+    <string name="tile_off">Off</string>
+
+    <string name="err_no_consent">Screen capture permission was declined, so there is no audio to listen to.</string>
+    <string name="err_projection_stopped">Audio capture was stopped by the system.</string>
+    <string name="err_no_vibrator">This device does not report a vibration motor.</string>
+    <string name="err_capture">Could not start audio capture.</string>
+</resources>
