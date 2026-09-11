@@ -326,8 +326,12 @@ class BassService : Service() {
     }
 
     private fun startForegroundCompat() {
+        // Playback capture is documented as a mediaProjection service, but it still
+        // reaches the audio stack through AudioRecord and RECORD_AUDIO, which API 34
+        // accounts for under the microphone type. Declare both for that path.
         val type = if (settings.captureMode == CaptureMode.PLAYBACK) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         } else {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         }
