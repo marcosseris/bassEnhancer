@@ -44,8 +44,6 @@ video. The app requests audio only.
 | **Playback capture** (default) | Once per session | Every app except those that opt out of capture — Spotify and most DRM video deliver silence by design |
 | **Visualizer** (experimental) | None | The whole output mix, but many Android builds return a flat line. Try it if playback capture is silent. |
 
-Visualizer mode is also the only mode that can start on boot: a `MediaProjection`
-grant cannot survive a reboot.
 
 ## Settings
 
@@ -77,8 +75,11 @@ grant cannot survive a reboot.
 
 **Battery and behaviour**
 
-- Pause while the screen is off, pause during calls, stop below a battery level, and
-  start on boot.
+- Pause while the screen is off, pause during calls, and stop below a battery level.
+- **Remind me after a reboot** — posts a one-tap notification after a restart.
+  It is a reminder rather than an automatic start on purpose: Android 11 and newer
+  deny microphone access to any foreground service launched from the background, so
+  an auto-started service would come up alive but permanently deaf.
 
 ## Overhead
 

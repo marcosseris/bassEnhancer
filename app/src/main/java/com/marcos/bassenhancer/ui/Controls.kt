@@ -142,8 +142,11 @@ fun <T> ChipRow(
 /** Bar meter of the live band level, so the threshold slider can be set by eye. */
 @Composable
 fun LevelMeter(levelDb: Float, amplitude: Float, thresholdDb: Float, active: Boolean) {
-    val normalized = ((levelDb + 90f) / 90f).coerceIn(0f, 1f)
-    val thresholdPos = ((thresholdDb + 90f) / 90f).coerceIn(0f, 1f)
+    // Spans the same range as the threshold slider, so the marker lands where the
+    // slider says it will instead of bunching up against the right-hand end.
+    val floorDb = -70f
+    val normalized = ((levelDb - floorDb) / -floorDb).coerceIn(0f, 1f)
+    val thresholdPos = ((thresholdDb - floorDb) / -floorDb).coerceIn(0f, 1f)
     val animated by animateFloatAsState(if (active) normalized else 0f, label = "meter")
     val amp by animateFloatAsState(if (active) amplitude else 0f, label = "amp")
 

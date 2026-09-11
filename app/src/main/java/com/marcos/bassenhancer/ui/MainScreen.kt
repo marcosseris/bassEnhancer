@@ -282,9 +282,10 @@ fun MainScreen(
                     onChange = { v -> edit { it.copy(batteryFloorPct = v.roundToInt()) } },
                 )
                 SettingSwitch(
-                    label = "Start on boot",
-                    description = "Visualizer mode only. Playback capture always needs one tap " +
-                        "after a reboot because Android will not persist the consent.",
+                    label = "Remind me after a reboot",
+                    description = "Posts a one-tap notification once the phone restarts. " +
+                        "Android denies microphone access to anything auto-started in the " +
+                        "background, so a tap is the only thing that actually works.",
                     checked = s.startOnBoot,
                     onChange = { v -> edit { it.copy(startOnBoot = v) } },
                 )

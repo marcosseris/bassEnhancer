@@ -19,6 +19,8 @@ import kotlin.math.roundToInt
  * We skip re-issues when the amplitude has barely moved, which keeps the binder
  * traffic down to a handful of calls a second on steady material.
  */
+private const val KICK_RING_MS = 40L
+
 class HapticEngine(context: Context) {
 
     private val vibrator: Vibrator? = run {
@@ -60,10 +62,13 @@ class HapticEngine(context: Context) {
 
         if (kick > 0f && prefs.style != HapticStyle.RUMBLE) {
             playKick(v, kick, prefs)
-            // A kick owns the actuator briefly; let it ring out before resuming rumble.
-            currentEndsAt = now + 40
+            // A kick owns the actuator for this tick. Resuming the rumble now would
+            // issue a one-shot that supersedes the transient we just played, so the
+            // punch would never be felt; the next tick picks the rumble back up.
+            currentEndsAt = now + KICK_RING_MS
+            lastIssuedAt = now
             lastAmplitude = 0
-            if (prefs.style == HapticStyle.PUNCH) return
+            return
         }
 
         if (prefs.style == HapticStyle.PUNCH) return

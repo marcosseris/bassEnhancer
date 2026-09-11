@@ -8,11 +8,17 @@
     <string name="notif_text">Tracking %1$d–%2$d Hz on the media output</string>
     <string name="action_stop">Stop</string>
 
+    <string name="channel_boot_name">Restart reminder</string>
+    <string name="channel_boot_desc">A one-tap prompt to resume after the phone reboots.</string>
+    <string name="boot_title">Bass Enhancer is ready</string>
+    <string name="boot_text">Tap to resume enhancing bass</string>
+
     <string name="tile_on">On</string>
     <string name="tile_off">Off</string>
 
     <string name="err_no_consent">Screen capture permission was declined, so there is no audio to listen to.</string>
     <string name="err_projection_stopped">Audio capture was stopped by the system.</string>
     <string name="err_no_vibrator">This device does not report a vibration motor.</string>
+    <string name="err_fgs_denied">Android would not let the service start from the background. Open the app and start it from here.</string>
     <string name="err_capture">Could not start audio capture.</string>
 </resources>

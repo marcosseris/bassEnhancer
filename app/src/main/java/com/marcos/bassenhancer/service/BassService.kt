@@ -134,9 +134,17 @@ class BassService : Service() {
         }
 
         settings = prefs.current
-        startForegroundCompat()
+        try {
+            startForegroundCompat()
+        } catch (e: Exception) {
+            // Android can refuse a microphone-type foreground service started from
+            // a context it does not consider visible (a tile tap, for instance).
+            Log.e(TAG, "startForeground refused", e)
+            stopWithMessage(getString(R.string.err_fgs_denied))
+            return START_NOT_STICKY
+        }
 
-        if (running) return START_STICKY
+        if (running) return stickiness()
 
         val started = when (settings.captureMode) {
             CaptureMode.PLAYBACK -> startPlaybackCapture(intent)
@@ -146,8 +154,15 @@ class BassService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        return START_STICKY
+        return stickiness()
     }
+
+    /**
+     * A sticky restart hands us a null Intent, and a MediaProjection grant cannot be
+     * recovered from one, so only Visualizer mode is worth restarting.
+     */
+    private fun stickiness(): Int =
+        if (settings.captureMode == CaptureMode.VISUALIZER) START_STICKY else START_NOT_STICKY
 
     private fun startPlaybackCapture(intent: Intent?): Boolean {
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
