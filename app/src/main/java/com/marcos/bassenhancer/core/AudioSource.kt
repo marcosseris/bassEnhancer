@@ -118,7 +118,7 @@ class VisualizerSource : AudioSource {
         val buf = ShortArray(captureSize)
 
         val vis = Visualizer(0).apply {
-            enabled = false
+            setEnabled(false)
             setCaptureSize(captureSize)
             setDataCaptureListener(
                 object : Visualizer.OnDataCaptureListener {
@@ -138,7 +138,7 @@ class VisualizerSource : AudioSource {
                 true,
                 false,
             )
-            enabled = true
+            setEnabled(true)
         }
         visualizer = vis
         running = true
@@ -153,7 +153,7 @@ class VisualizerSource : AudioSource {
             }
         }
 
-        runCatching { vis.enabled = false }
+        runCatching { vis.setEnabled(false) }
         runCatching { vis.release() }
         visualizer = null
     }

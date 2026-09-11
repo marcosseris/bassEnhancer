@@ -56,11 +56,9 @@ fun MainScreen(
     val amplitude by ServiceState.amplitude.collectAsStateWithLifecycle()
     val running = runState == RunState.RUNNING
 
-    // Any settings edit while running is pushed straight to the live pipeline.
-    fun edit(transform: (Prefs) -> Prefs) {
-        prefs.update(transform)
-        BassService.notifySettingsChanged(context)
-    }
+    // The service collects this same flow, so an edit reaches the live pipeline
+    // by itself -- no need to poke it.
+    fun edit(transform: (Prefs) -> Prefs) = prefs.update(transform)
 
     Scaffold(
         topBar = {
@@ -322,10 +320,7 @@ fun MainScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedButton(
-                    onClick = {
-                        prefs.resetToDefaults()
-                        BassService.notifySettingsChanged(context)
-                    },
+                    onClick = { prefs.resetToDefaults() },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
                     Text("Reset settings")
@@ -407,14 +402,14 @@ private fun MasterCard(
                 )
             }
 
-            if (!running && runState != RunState.ERROR) {
+            if (!running) {
                 Button(
                     onClick = { onToggle(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
                 ) {
-                    Text("Start")
+                    Text(if (runState == RunState.ERROR) "Try again" else "Start")
                 }
             }
         }

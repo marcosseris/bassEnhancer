@@ -55,6 +55,14 @@ class BassAnalyzer(private val sampleRate: Int) {
 
     private val blockRate: Float get() = sampleRate.toFloat() / hop
 
+    @Volatile
+    private var pendingConfig: Prefs? = null
+
+    /** Safe to call from any thread: applied at the next block boundary. */
+    fun requestConfigure(s: Prefs) {
+        pendingConfig = s
+    }
+
     fun configure(s: Prefs) {
         val low = s.lowCutHz.toFloat()
         val high = max(s.highCutHz.toFloat(), low + 10f)
@@ -89,6 +97,10 @@ class BassAnalyzer(private val sampleRate: Int) {
      * @param channels 1 or 2
      */
     fun process(pcm: ShortArray, count: Int, channels: Int) {
+        pendingConfig?.let {
+            pendingConfig = null
+            configure(it)
+        }
         var i = 0
         while (i + channels <= count) {
             var mono = 0f

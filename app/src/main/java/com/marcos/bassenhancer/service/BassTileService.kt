@@ -74,7 +74,7 @@ class BassTileService : TileService() {
     companion object {
         fun requestUpdate(context: Context) {
             runCatching {
-                requestListeningState(
+                TileService.requestListeningState(
                     context,
                     android.content.ComponentName(context, BassTileService::class.java),
                 )

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.media.AudioManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -22,6 +23,7 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.marcos.bassenhancer.MainActivity
 import com.marcos.bassenhancer.R
 import com.marcos.bassenhancer.core.AudioSource
@@ -32,6 +34,11 @@ import com.marcos.bassenhancer.core.PlaybackCaptureSource
 import com.marcos.bassenhancer.core.Prefs
 import com.marcos.bassenhancer.core.PrefsRepository
 import com.marcos.bassenhancer.core.VisualizerSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 private const val TAG = "BassService"
 private const val CHANNEL_ID = "bass_enhancer_running"
@@ -67,6 +74,8 @@ class BassService : Service() {
 
     private var lastMeterPush = 0L
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             Log.i(TAG, "MediaProjection revoked")
@@ -87,12 +96,28 @@ class BassService : Service() {
         settings = prefs.current
         haptics = HapticEngine(this)
         createChannel()
-        registerReceiver(
+        // Same process as the UI, so the settings flow is the cheapest possible
+        // channel: a slider drag reconfigures the live pipeline with no IPC at all.
+        scope.launch {
+            prefs.flow.collect { next ->
+                val previous = settings
+                settings = next
+                analyzer?.requestConfigure(next)
+                if (running &&
+                    (next.lowCutHz != previous.lowCutHz || next.highCutHz != previous.highCutHz)
+                ) {
+                    updateNotification()
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            this,
             screenReceiver,
             IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
             },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
     }
@@ -106,22 +131,12 @@ class BassService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-
-            ACTION_SETTINGS_CHANGED -> {
-                settings = prefs.current
-                analyzer?.configure(settings)
-                updateNotification()
-                return START_STICKY
-            }
         }
 
         settings = prefs.current
         startForegroundCompat()
 
-        if (running) {
-            analyzer?.configure(settings)
-            return START_STICKY
-        }
+        if (running) return START_STICKY
 
         val started = when (settings.captureMode) {
             CaptureMode.PLAYBACK -> startPlaybackCapture(intent)
@@ -274,6 +289,7 @@ class BassService : Service() {
 
     override fun onDestroy() {
         running = false
+        scope.cancel()
         haptics.stop()
         source?.stop()
         audioThread?.interrupt()
@@ -341,7 +357,11 @@ class BassService : Service() {
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
             .addAction(
-                Notification.Action.Builder(null, getString(R.string.action_stop), stop).build(),
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_tile),
+                    getString(R.string.action_stop),
+                    stop,
+                ).build(),
             )
             .build()
     }
@@ -364,7 +384,6 @@ class BassService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.marcos.bassenhancer.STOP"
-        const val ACTION_SETTINGS_CHANGED = "com.marcos.bassenhancer.SETTINGS_CHANGED"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
 
@@ -377,13 +396,6 @@ class BassService : Service() {
 
         fun startVisualizerMode(context: Context) {
             context.startForegroundService(Intent(context, BassService::class.java))
-        }
-
-        fun notifySettingsChanged(context: Context) {
-            if (ServiceState.state.value != RunState.RUNNING) return
-            context.startService(
-                Intent(context, BassService::class.java).setAction(ACTION_SETTINGS_CHANGED),
-            )
         }
 
         fun stop(context: Context) {
